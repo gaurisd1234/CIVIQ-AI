@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Citizen Portal | CIVIQ-AI</title>
+
+<link rel="stylesheet" href="style.css">
+
+<style>
+
+.feed-box{
+margin-top:10px;
+padding:10px;
+border-bottom:1px solid #ddd;
+}
+
+.feed-box button{
+margin-top:5px;
+padding:5px 10px;
+border:none;
+background:#2563eb;
+color:white;
+border-radius:4px;
+cursor:pointer;
+}
+
+</style>
+
+</head>
+
+
+<body>
+
+<!-- NAVBAR -->
+
+<nav>
+
+<div class="brand">
+CIVIQ-AI | Citizen Portal
+</div>
+
+<div>
+
+<span id="userName" style="margin-right:20px;font-weight:600;"></span>
+
+<div class="profile-menu">
+
+<img src="https://cdn-icons-png.flaticon.com/512/847/847969.png" class="profile-icon">
+
+<span id="username"></span>
+
+<div class="dropdown">
+
+<a onclick="logoutUser()">Logout</a>
+
+</div>
+
+</div>
+
+</div>
+
+</nav>
+
+
+
+<div class="container grid-2">
+
+<!-- REPORT COMPLAINT -->
+
+<div class="card">
+
+<h2>📢 Report Civic Issue</h2>
+
+<form id="complaintForm" enctype="multipart/form-data">
+
+<div class="form-group">
+
+<label>Issue Description</label>
+
+<textarea id="desc"
+rows="4"
+placeholder="Describe the civic problem clearly..."
+required></textarea>
+
+</div>
+
+
+
+<div class="form-group">
+
+<label>Severity</label>
+
+<select id="severity">
+
+<option value="low">Low</option>
+
+<option value="medium">Medium</option>
+
+<option value="high">High</option>
+
+</select>
+
+</div>
+
+
+
+<div class="form-group">
+
+<label>Location (Ward / Area)</label>
+
+<input type="text"
+id="location"
+placeholder="Ward / Area"
+required>
+
+</div>
+
+
+
+<div class="form-group">
+
+<label>Upload Image Proof (optional)</label>
+
+<input type="file" id="image">
+
+</div>
+
+
+
+<button type="submit" class="submit-btn">
+Submit Complaint
+</button>
+
+</form>
+
+</div>
+
+
+
+<!-- COMMUNITY FEED -->
+
+<div class="card">
+
+<h2>🌍 Community Reports</h2>
+
+<div id="complaintFeed"></div>
+
+</div>
+
+</div>
+
+
+
+<script src="script.js"></script>
+
+<script>
+
+/* =====================================
+PROTECT PAGE
+===================================== */
+
+async function protectCitizenPage(){
+
+const res = await fetch("http://127.0.0.1:5000/check_session",{
+
+credentials:"include"
+
+});
+
+const data = await res.json();
+
+if(!data.logged_in || data.role !== "citizen"){
+
+alert("Please login first");
+
+window.location.href="citizen_login.html";
+
+}
+
+}
+
+
+
+/* =====================================
+FORM SUBMISSION
+===================================== */
+
+const form = document.getElementById("complaintForm");
+
+form.addEventListener("submit", async function(e){
+
+e.preventDefault();
+
+await submitComplaint();
+
+/* reload feed after submission */
+
+fetchComplaints("citizen");
+
+});
+
+
+
+/* =====================================
+PAGE LOAD
+===================================== */
+
+window.onload = async function(){
+
+const res = await fetch("http://127.0.0.1:5000/check_session",{
+credentials:"include"
+});
+
+const data = await res.json();
+
+if(!data.logged_in || data.role !== "citizen"){
+
+alert("Please login first");
+window.location.href="citizen_login.html";
+return;
+
+}
+
+/* show user name */
+
+document.getElementById("userName").innerText = data.name;
+
+fetchComplaints("citizen");
+
+}
+
+</script>
+
+</body>
+
+</html>

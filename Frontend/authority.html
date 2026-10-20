@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<title>Authority Dashboard | CIVIQ-AI</title>
+
+<link rel="stylesheet" href="style.css">
+
+<link rel="stylesheet"
+href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
+
+<style>
+
+th{
+text-align:left;
+padding:12px;
+background:var(--light);
+}
+
+td{
+padding:12px;
+border-bottom:1px solid #eee;
+}
+
+#map{
+height:350px;
+border-radius:12px;
+border:1px solid #ddd;
+}
+
+</style>
+
+</head>
+
+
+
+<body>
+
+<!-- NAVBAR -->
+
+<nav>
+
+<div class="brand">
+CIVIQ-AI | Authority Dashboard
+</div>
+
+<a href="#" onclick="logoutUser()">Logout</a>
+
+</nav>
+
+
+
+<div class="container">
+
+
+<div class="grid-2">
+
+<!-- MAP -->
+
+<div class="card">
+
+<h2>Ward-wise Heatmap</h2>
+
+<div id="map"></div>
+
+<p>
+<small>*Markers indicate complaint density per ward.</small>
+</p>
+
+</div>
+
+
+<!-- SYSTEM STATUS -->
+
+<div class="card">
+
+<h2>System Overview</h2>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+
+<div class="card"
+style="background:var(--light);text-align:center;">
+
+<h1 id="totalCount">0</h1>
+
+<p>Total Issues</p>
+
+</div>
+
+
+<div class="card"
+style="background:var(--light);text-align:center;">
+
+<h1 style="color:var(--secondary)">Live</h1>
+
+<p>AI Engine Status</p>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+
+
+<!-- TABLE -->
+
+<div class="card" style="margin-top:2rem;">
+
+<h2>📥 Prioritized Work Queue</h2>
+
+<table width="100%">
+
+<thead>
+
+<tr>
+
+<th>ID</th>
+<th>Category</th>
+<th>Severity</th>
+<th>Location</th>
+<th>Priority</th>
+<th>Status</th>
+<th>Proof</th>
+<th>Likes</th>
+<th>Update Status</th>
+
+</tr>
+
+</thead>
+
+<tbody id="adminTableBody"></tbody>
+
+</table>
+
+</div>
+
+
+</div>
+
+
+
+<script src="script.js"></script>
+
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+
+
+
+<script>
+
+const API="http://127.0.0.1:5000";
+
+
+/* ================= MAP ================= */
+
+const wardCoords={
+"Ward-1":[19.8762,75.3433],
+"Ward-2":[19.8900,75.3500],
+"Ward-3":[19.8600,75.3300],
+"Ward-4":[19.8800,75.3700]
+};
+
+
+const map=L.map("map").setView([19.8762,75.3433],13);
+
+L.tileLayer(
+"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+).addTo(map);
+
+
+
+/* ================= AUTH PROTECTION ================= */
+
+async function protectAuthorityPage(){
+
+const res = await fetch(`${API}/check_session`,{
+credentials:"include"
+});
+
+const data = await res.json();
+
+if(!data.logged_in || data.role !== "authority"){
+
+alert("Unauthorized access");
+
+window.location.href="authority_login.html";
+
+}
+
+}
+
+
+
+/* ================= LOAD COMPLAINTS ================= */
+
+async function loadAdminData(){
+
+const table=document.getElementById("adminTableBody");
+
+const res=await fetch(`${API}/complaints`,{
+credentials:"include"
+});
+
+if(res.status === 401){
+
+alert("Session expired. Please login again.");
+
+window.location.href="authority_login.html";
+
+return;
+
+}
+
+const result=await res.json();
+
+document.getElementById("totalCount").innerText=result.data.length;
+
+table.innerHTML="";
+
+
+/* CLEAR OLD MARKERS */
+
+map.eachLayer(layer=>{
+if(layer instanceof L.Marker){
+map.removeLayer(layer);
+}
+});
+
+
+/* RENDER TABLE */
+
+result.data.forEach(c=>{
+
+const row=`
+<tr>
+
+<td>${c.id}</td>
+
+<td>${c.category}</td>
+
+<td>${c.severity}</td>
+
+<td>${c.location}</td>
+
+<td>${c.priority}</td>
+
+<td>${c.status}</td>
+
+<td>
+
+${c.image_path
+? `<a href="${API}/uploads/${c.image_path}" target="_blank">View</a>`
+: "No Proof"}
+
+</td>
+
+<td>${c.support_count}</td>
+
+<td>
+
+<select onchange="updateStatus(${c.id},this.value)">
+
+<option value="open"
+${c.status==="open"?"selected":""}>
+Open
+</option>
+
+<option value="in_progress"
+${c.status==="in_progress"?"selected":""}>
+In Progress
+</option>
+
+<option value="closed"
+${c.status==="closed"?"selected":""}>
+Closed
+</option>
+
+</select>
+
+</td>
+
+</tr>
+`;
+
+table.innerHTML+=row;
+
+
+/* MAP MARKER */
+
+if(wardCoords[c.location]){
+
+L.marker(wardCoords[c.location])
+.addTo(map)
+.bindPopup(`
+<b>${c.category}</b><br>
+Priority: ${c.priority}
+`);
+
+}
+
+});
+
+}
+
+
+
+/* ================= UPDATE STATUS ================= */
+
+async function updateStatus(id,status){
+
+await fetch(`${API}/complaints/${id}/status`,{
+
+method:"PUT",
+
+credentials:"include",
+
+headers:{
+"Content-Type":"application/json"
+},
+
+body:JSON.stringify({
+status:status
+})
+
+});
+
+loadAdminData();
+
+}
+
+
+
+/* ================= PAGE LOAD ================= */
+
+window.onload=async function(){
+
+await protectAuthorityPage();
+
+loadAdminData();
+
+};
+
+</script>
+
+</body>
+
+</html>

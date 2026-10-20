@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<title>CIVIQ-AI | Smart Governance Portal</title>
+
+<link rel="stylesheet" href="style.css">
+
+<style>
+
+.hero{
+background: linear-gradient(rgba(37,99,235,0.85), rgba(30,58,138,0.9)),
+url('https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1200&q=80');
+background-size:cover;
+color:white;
+padding:80px 20px;
+text-align:center;
+border-bottom-left-radius:50% 20px;
+border-bottom-right-radius:50% 20px;
+}
+
+.hero h1{
+font-size:3rem;
+margin-bottom:10px;
+}
+
+.feature-box{
+text-align:center;
+padding:25px;
+}
+
+
+/* navbar */
+
+nav{
+display:flex;
+justify-content:space-between;
+align-items:center;
+padding:15px 40px;
+background:white;
+box-shadow:0 2px 5px rgba(0,0,0,0.1);
+}
+
+.brand{
+font-size:20px;
+font-weight:bold;
+}
+
+.dropdown{
+position:relative;
+display:inline-block;
+cursor:pointer;
+}
+
+.dropdown-content{
+display:none;
+position:absolute;
+background:white;
+min-width:150px;
+box-shadow:0px 5px 10px rgba(0,0,0,0.1);
+border-radius:6px;
+right:0;
+}
+
+.dropdown-content a{
+display:block;
+padding:10px;
+text-decoration:none;
+color:black;
+}
+
+.dropdown:hover .dropdown-content{
+display:block;
+}
+
+.btn-group{
+display:flex;
+flex-direction:column;
+align-items:center;
+gap:15px;
+margin-top:20px;
+}
+
+.portal-btn{
+display:inline-block;
+padding:12px 25px;
+border-radius:8px;
+text-decoration:none;
+font-weight:600;
+min-width:200px;
+text-align:center;
+}
+
+.citizen-btn{
+background:#2563eb;
+color:white;
+}
+
+.authority-btn{
+background:#2563eb;
+color:white;
+}
+
+.signup-btn{
+background:#10B981;
+color:white;
+}
+
+.portal-btn:hover{
+opacity:0.9;
+}
+
+</style>
+
+</head>
+
+
+<body>
+
+<!-- NAVBAR -->
+
+<nav>
+
+<div class="brand">CIVIQ-AI</div>
+
+<div style="display: flex; gap: 15px; align-items: center;">
+<a href="db_admin.html" style="color: #2563eb; text-decoration: none; font-weight: 600;">🗄️ Database Manager</a>
+<div id="navUser">
+<a href="citizen_login.html">Login</a>
+</div>
+</div>
+
+</nav>
+
+
+<!-- HERO -->
+
+<div class="hero">
+
+<h1>CIVIQ-AI</h1>
+
+<p>AI-Powered Civic Intelligence Platform for Accountable Governance</p>
+
+</div>
+
+
+
+<div class="container">
+
+<div class="grid-2" style="margin-top:-40px;">
+
+
+<!-- Citizen Portal -->
+
+<div class="card feature-box">
+
+<h2>Citizen Access</h2>
+
+<p>
+Report civic issues, upload image proof and track real-time
+resolution status.
+</p>
+
+<div class="btn-group">
+
+<a href="citizen_login.html" class="portal-btn citizen-btn">
+Citizen Login
+</a>
+
+<a href="signup.html" class="portal-btn signup-btn">
+New Citizen? Sign Up
+</a>
+
+</div>
+
+</div>
+
+
+
+<!-- Authority Portal -->
+
+<div class="card feature-box">
+
+<h2>Authority Access</h2>
+
+<p>
+Data-driven decision support with automated priority ranking
+and ward-wise analytics.
+</p>
+
+<div class="btn-group">
+
+<a href="authority_login.html" class="portal-btn authority-btn">
+Authority Login
+</a>
+
+<a href="authority_signup.html" class="portal-btn signup-btn">
+Register Authority
+</a>
+
+</div>
+
+</div>
+
+
+
+
+
+
+<script src="script.js"></script>
+
+<script>
+
+/* check if user already logged in */
+
+async function checkUser(){
+
+try{
+
+const res = await fetch("http://127.0.0.1:5000/check_session",{
+credentials:"include"
+});
+
+const data = await res.json();
+
+if(data.logged_in){
+
+document.getElementById("navUser").innerHTML=`
+
+<div class="dropdown">
+
+${data.name} ▼
+
+<div class="dropdown-content">
+
+<a href="profile.html">My Profile</a>
+
+<a href="#" onclick="logoutUser()">Logout</a>
+
+</div>
+
+</div>
+
+`;
+
+}
+
+}
+
+catch(err){
+
+console.log("Not logged in");
+
+}
+
+}
+
+checkUser();
+
+</script>
+
+</body>
+
+</html>

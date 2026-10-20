@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Profile | CIVIQ-AI</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .profile-container {
+            max-width: 600px;
+            margin: 40px auto;
+        }
+        .profile-header {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .profile-avatar-large {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #2563eb;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+        .badge-authority {
+            background: #fef3c7;
+            color: #92400e;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- NAVBAR -->
+    <nav>
+        <div class="brand">CIVIQ-AI</div>
+        <div>
+            <a href="javascript:history.back()" style="margin-right: 15px; text-decoration: none; color: #2563eb; font-weight: 500;">← Back</a>
+            <a href="#" onclick="logoutUser()" style="text-decoration: none; color: #ef4444; font-weight: 500;">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container profile-container">
+        <div class="card">
+            <div class="profile-header">
+                <img id="avatarPreview" src="https://cdn-icons-png.flaticon.com/512/847/847969.png" class="profile-avatar-large" alt="Profile Picture">
+                <div>
+                    <h2 id="displayName" style="margin: 0; color: #1e293b;">Loading...</h2>
+                    <p id="displayEmail" style="margin: 4px 0 8px 0; color: #64748b;">user@example.com</p>
+                    <span id="roleBadge" class="badge">Citizen</span>
+                </div>
+            </div>
+
+            <h3>Update Profile</h3>
+            <form id="profileForm">
+                <div class="form-group">
+                    <label for="name">Full Name</label>
+                    <input type="text" id="name" placeholder="Enter your full name" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="phone">Phone Number</label>
+                    <input type="tel" id="phone" placeholder="Enter phone number">
+                </div>
+
+                <div class="form-group" id="deptGroup" style="display: none;">
+                    <label for="department">Department</label>
+                    <input type="text" id="department" disabled style="background-color: #f1f5f9; cursor: not-allowed;">
+                </div>
+
+                <div class="form-group">
+                    <label for="profile_picture">Profile Picture</label>
+                    <input type="file" id="profile_picture" accept="image/*">
+                </div>
+
+                <button type="submit" class="submit-btn">Save Changes</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        async function loadProfileData() {
+            try {
+                const res = await fetch(`${API_URL}/user_info`, { credentials: "include" });
+                if (res.status !== 200) {
+                    alert("Please login to view profile");
+                    window.location.href = "index.html";
+                    return;
+                }
+                const user = await res.json();
+                document.getElementById("displayName").innerText = user.name || "User";
+                document.getElementById("displayEmail").innerText = user.email || "";
+                document.getElementById("name").value = user.name || "";
+                document.getElementById("phone").value = user.phone_number || "";
+
+                if (user.role === "authority") {
+                    const badge = document.getElementById("roleBadge");
+                    badge.innerText = "Authority (" + (user.department || "General") + ")";
+                    badge.classList.add("badge-authority");
+                    document.getElementById("deptGroup").style.display = "block";
+                    document.getElementById("department").value = user.department || "";
+                }
+
+                if (user.profile_picture && user.profile_picture !== "default.jpg") {
+                    document.getElementById("avatarPreview").src = `${API_URL}/uploads/${user.profile_picture}`;
+                }
+            } catch (err) {
+                console.error("Error loading profile:", err);
+            }
+        }
+
+        document.getElementById("profileForm").addEventListener("submit", async function(e) {
+            e.preventDefault();
+            await updateProfile();
+            await loadProfileData();
+        });
+
+        window.onload = loadProfileData;
+    </script>
+</body>
+</html>

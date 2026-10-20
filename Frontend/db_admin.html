@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Manager | CIVIQ-AI</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --bg-dark: #0f172a;
+            --card-bg: #ffffff;
+            --border-color: #e2e8f0;
+        }
+
+        body {
+            background-color: #f8fafc;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        nav {
+            background: #1e293b;
+            color: white;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+
+        .brand-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #38bdf8;
+        }
+
+        .db-layout {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            min-height: calc(100vh - 65px);
+        }
+
+        .sidebar {
+            background: #0f172a;
+            color: #94a3b8;
+            padding: 20px 15px;
+            border-right: 1px solid #1e293b;
+        }
+
+        .sidebar-title {
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            color: #64748b;
+            margin-bottom: 12px;
+            padding-left: 10px;
+        }
+
+        .table-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .table-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            margin-bottom: 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #cbd5e1;
+            font-size: 0.95rem;
+        }
+
+        .table-item:hover, .table-item.active {
+            background: #1e293b;
+            color: #38bdf8;
+            font-weight: 600;
+        }
+
+        .table-count {
+            background: #334155;
+            color: #f8fafc;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+        }
+
+        .main-content {
+            padding: 25px;
+            overflow-x: auto;
+        }
+
+        .header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            background: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .table-heading {
+            font-size: 1.4rem;
+            color: #0f172a;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .action-btns {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-action {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: opacity 0.2s;
+        }
+
+        .btn-action:hover { opacity: 0.9; }
+
+        .btn-add { background: #10b981; color: white; }
+        .btn-refresh { background: #3b82f6; color: white; }
+        .btn-sql { background: #8b5cf6; color: white; }
+
+        .data-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            overflow-x: auto;
+        }
+
+        .search-box {
+            width: 300px;
+            padding: 8px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+
+        table.db-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        table.db-table th {
+            background: #f1f5f9;
+            color: #334155;
+            text-align: left;
+            padding: 12px 10px;
+            border-bottom: 2px solid #cbd5e1;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        table.db-table td {
+            padding: 10px;
+            border-bottom: 1px solid #e2e8f0;
+            color: #1e293b;
+            max-width: 250px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        table.db-table tr:hover {
+            background: #f8fafc;
+        }
+
+        .row-btn {
+            padding: 4px 8px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            margin-right: 4px;
+        }
+
+        .btn-edit { background: #3b82f6; color: white; }
+        .btn-delete { background: #ef4444; color: white; }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(3px);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            width: 550px;
+            max-width: 90%;
+            max-height: 85vh;
+            overflow-y: auto;
+            padding: 25px;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .modal-title { margin: 0; font-size: 1.2rem; color: #0f172a; }
+        .close-modal { cursor: pointer; font-size: 1.5rem; color: #64748b; }
+
+        .form-row {
+            margin-bottom: 12px;
+        }
+
+        .form-row label {
+            display: block;
+            font-weight: 600;
+            font-size: 0.85rem;
+            margin-bottom: 4px;
+            color: #475569;
+        }
+
+        .form-row input, .form-row textarea, .form-row select {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            box-sizing: border-box;
+        }
+
+        .sql-box {
+            width: 100%;
+            height: 120px;
+            font-family: monospace;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #cbd5e1;
+            background: #0f172a;
+            color: #38bdf8;
+            margin-bottom: 10px;
+        }
+
+        .sql-tab { display: none; }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="brand-logo">
+            <i class="fa-solid fa-database"></i> CIVIQ-AI Database Manager
+        </div>
+        <div>
+            <a href="index.html" style="color: #94a3b8; text-decoration: none; font-weight: 500; margin-right: 20px;">
+                ← Main Portal
+            </a>
+            <a href="#" onclick="logoutUser()" style="color: #f87171; text-decoration: none; font-weight: 500;">
+                Logout
+            </a>
+        </div>
+    </nav>
+
+    <div class="db-layout">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-title">Database Tables</div>
+            <ul class="table-list" id="tableList">
+                <li style="padding: 10px; color: #64748b;">Loading tables...</li>
+            </ul>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+
+            <!-- Data Tab -->
+            <div id="dataViewTab">
+                <div class="header-bar">
+                    <h2 class="table-heading" id="currentTableName">
+                        <i class="fa-solid fa-table"></i> Select a Table
+                    </h2>
+                    <div class="action-btns">
+                        <button class="btn-action btn-add" onclick="openAddModal()">
+                            <i class="fa-solid fa-plus"></i> Insert Row
+                        </button>
+                        <button class="btn-action btn-refresh" onclick="loadTableData(currentTable)">
+                            <i class="fa-solid fa-rotate"></i> Refresh
+                        </button>
+                        <button class="btn-action btn-sql" onclick="toggleSqlTab()">
+                            <i class="fa-solid fa-terminal"></i> Raw SQL Console
+                        </button>
+                    </div>
+                </div>
+
+                <div class="data-card">
+                    <input type="text" id="searchInput" class="search-box" placeholder="🔍 Search records in table..." onkeyup="filterTable()">
+                    <div id="tableContainer">
+                        <p style="color: #64748b;">Select a table from the sidebar to view data records.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SQL Tab -->
+            <div id="sqlViewTab" class="sql-tab">
+                <div class="header-bar">
+                    <h2 class="table-heading"><i class="fa-solid fa-terminal"></i> Execute Raw SQL Command</h2>
+                    <button class="btn-action btn-refresh" onclick="toggleSqlTab()">
+                        <i class="fa-solid fa-table"></i> Back to Tables
+                    </button>
+                </div>
+                <div class="data-card">
+                    <textarea id="sqlQueryInput" class="sql-box" placeholder="SELECT * FROM users LIMIT 10;"></textarea>
+                    <button class="btn-action btn-sql" onclick="runCustomQuery()">
+                        <i class="fa-solid fa-play"></i> Execute Query
+                    </button>
+                    <div id="sqlResultContainer" style="margin-top: 20px;"></div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Edit/Add Record Modal -->
+    <div id="recordModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modalTitle">Insert Row</h3>
+                <span class="close-modal" onclick="closeModal()">&times;</span>
+            </div>
+            <form id="recordForm">
+                <div id="formFieldsContainer"></div>
+                <div style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
+                    <button type="button" onclick="closeModal()" style="padding: 8px 16px; border: 1px solid #cbd5e1; background: white; border-radius: 6px; cursor: pointer;">Cancel</button>
+                    <button type="submit" class="btn-action btn-add" style="padding: 8px 20px;">Save Record</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        let tablesMeta = [];
+        let currentTable = null;
+        let currentColumns = [];
+        let currentRows = [];
+        let editingRowId = null;
+
+        async function initDbManager() {
+            try {
+                const res = await fetch(`${API_URL}/api/db/tables`);
+                const data = await res.json();
+                tablesMeta = data.tables || [];
+                renderSidebar();
+                if (tablesMeta.length > 0) {
+                    loadTableData(tablesMeta[0].name);
+                }
+            } catch (err) {
+                console.error("Failed to load tables:", err);
+                document.getElementById("tableList").innerHTML = `<li style="color: red; padding: 10px;">Failed to connect to backend</li>`;
+            }
+        }
+
+        function renderSidebar() {
+            const list = document.getElementById("tableList");
+            list.innerHTML = "";
+            tablesMeta.forEach(t => {
+                const li = document.createElement("li");
+                li.className = `table-item ${t.name === currentTable ? 'active' : ''}`;
+                li.onclick = () => loadTableData(t.name);
+                li.innerHTML = `
+                    <span><i class="fa-solid fa-table-cells" style="margin-right: 8px;"></i>${t.name}</span>
+                    <span class="table-count">${t.count}</span>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        async function loadTableData(tableName) {
+            currentTable = tableName;
+            document.getElementById("currentTableName").innerHTML = `<i class="fa-solid fa-table"></i> Table: ${tableName}`;
+            renderSidebar();
+
+            try {
+                const res = await fetch(`${API_URL}/api/db/table/${tableName}`);
+                const data = await res.json();
+                currentColumns = data.columns || [];
+                currentRows = data.rows || [];
+                renderTable();
+            } catch (err) {
+                console.error("Error loading table data:", err);
+            }
+        }
+
+        function renderTable() {
+            const container = document.getElementById("tableContainer");
+            if (currentColumns.length === 0) {
+                container.innerHTML = `<p style="color: #64748b;">No columns found.</p>`;
+                return;
+            }
+
+            let html = `<table class="db-table" id="dbDataTable"><thead><tr>`;
+            currentColumns.forEach(col => {
+                html += `<th>${col}</th>`;
+            });
+            html += `<th style="text-align: center;">Actions</th></tr></thead><tbody>`;
+
+            if (currentRows.length === 0) {
+                html += `<tr><td colspan="${currentColumns.length + 1}" style="text-align: center; color: #94a3b8; padding: 20px;">Table is empty</td></tr>`;
+            } else {
+                currentRows.forEach(row => {
+                    html += `<tr>`;
+                    currentColumns.forEach(col => {
+                        const val = row[col] !== null ? String(row[col]) : '<span style="color: #94a3b8; font-style: italic;">NULL</span>';
+                        html += `<td title="${String(row[col]).replace(/"/g, '&quot;')}">${val}</td>`;
+                    });
+                    const rowId = row.id;
+                    html += `<td style="text-align: center; white-space: nowrap;">
+                        <button class="row-btn btn-edit" onclick="openEditModal(${rowId})"><i class="fa-solid fa-pen"></i> Edit</button>
+                        <button class="row-btn btn-delete" onclick="deleteRow(${rowId})"><i class="fa-solid fa-trash"></i> Delete</button>
+                    </td></tr>`;
+                });
+            }
+            html += `</tbody></table>`;
+            container.innerHTML = html;
+        }
+
+        function filterTable() {
+            const q = document.getElementById("searchInput").value.toLowerCase();
+            const rows = document.querySelectorAll("#dbDataTable tbody tr");
+            rows.forEach(r => {
+                const text = r.innerText.toLowerCase();
+                r.style.display = text.includes(q) ? "" : "none";
+            });
+        }
+
+        function openAddModal() {
+            if (!currentTable) return;
+            editingRowId = null;
+            document.getElementById("modalTitle").innerText = `Insert Record into '${currentTable}'`;
+            const container = document.getElementById("formFieldsContainer");
+            container.innerHTML = "";
+
+            const tableSchema = tablesMeta.find(t => t.name === currentTable);
+            currentColumns.forEach(col => {
+                if (col === "id") return; // auto-increment pk
+                const div = document.createElement("div");
+                div.className = "form-row";
+                div.innerHTML = `
+                    <label>${col}</label>
+                    <input type="text" name="${col}" placeholder="Enter ${col}">
+                `;
+                container.appendChild(div);
+            });
+            document.getElementById("recordModal").style.display = "flex";
+        }
+
+        function openEditModal(rowId) {
+            const row = currentRows.find(r => r.id === rowId);
+            if (!row) return;
+            editingRowId = rowId;
+            document.getElementById("modalTitle").innerText = `Edit Record ID #${rowId} in '${currentTable}'`;
+            const container = document.getElementById("formFieldsContainer");
+            container.innerHTML = "";
+
+            currentColumns.forEach(col => {
+                if (col === "id") return;
+                const div = document.createElement("div");
+                div.className = "form-row";
+                const val = row[col] !== null ? row[col] : "";
+                div.innerHTML = `
+                    <label>${col}</label>
+                    <input type="text" name="${col}" value="${String(val).replace(/"/g, '&quot;')}">
+                `;
+                container.appendChild(div);
+            });
+            document.getElementById("recordModal").style.display = "flex";
+        }
+
+        function closeModal() {
+            document.getElementById("recordModal").style.display = "none";
+        }
+
+        document.getElementById("recordForm").addEventListener("submit", async function(e) {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const payload = {};
+            formData.forEach((val, key) => {
+                if (val !== "") payload[key] = val;
+            });
+
+            try {
+                let res;
+                if (editingRowId) {
+                    res = await fetch(`${API_URL}/api/db/table/${currentTable}/${editingRowId}`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(payload)
+                    });
+                } else {
+                    res = await fetch(`${API_URL}/api/db/table/${currentTable}`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(payload)
+                    });
+                }
+                const result = await res.json();
+                if (res.ok) {
+                    closeModal();
+                    await initDbManager();
+                    loadTableData(currentTable);
+                } else {
+                    alert("Error: " + (result.error || "Operation failed"));
+                }
+            } catch (err) {
+                alert("Failed to save record");
+            }
+        });
+
+        async function deleteRow(rowId) {
+            if (!confirm(`Are you sure you want to delete row ID #${rowId} from '${currentTable}'?`)) return;
+
+            try {
+                const res = await fetch(`${API_URL}/api/db/table/${currentTable}/${rowId}`, {
+                    method: "DELETE"
+                });
+                if (res.ok) {
+                    await initDbManager();
+                    loadTableData(currentTable);
+                } else {
+                    alert("Failed to delete record");
+                }
+            } catch (err) {
+                alert("Error deleting record");
+            }
+        }
+
+        function toggleSqlTab() {
+            const dataTab = document.getElementById("dataViewTab");
+            const sqlTab = document.getElementById("sqlViewTab");
+            if (sqlTab.style.display === "block") {
+                sqlTab.style.display = "none";
+                dataTab.style.display = "block";
+            } else {
+                dataTab.style.display = "none";
+                sqlTab.style.display = "block";
+            }
+        }
+
+        async function runCustomQuery() {
+            const sql = document.getElementById("sqlQueryInput").value;
+            const container = document.getElementById("sqlResultContainer");
+            container.innerHTML = "<p>Executing query...</p>";
+
+            try {
+                const res = await fetch(`${API_URL}/api/db/query`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ query: sql })
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    container.innerHTML = `<div style="color: red; background: #fef2f2; padding: 12px; border-radius: 6px;">❌ Error: ${data.error}</div>`;
+                    return;
+                }
+
+                if (data.status === "success") {
+                    container.innerHTML = `<div style="color: green; background: #f0fdf4; padding: 12px; border-radius: 6px;">✅ Query executed successfully. Affected rows: ${data.affected_rows}</div>`;
+                    await initDbManager();
+                } else if (data.rows) {
+                    let html = `<p style="color: #334155; font-weight: 600;">Result (${data.count} rows returned):</p>`;
+                    html += `<table class="db-table"><thead><tr>`;
+                    data.columns.forEach(c => html += `<th>${c}</th>`);
+                    html += `</tr></thead><tbody>`;
+                    data.rows.forEach(r => {
+                        html += `<tr>`;
+                        data.columns.forEach(c => html += `<td>${r[c]}</td>`);
+                        html += `</tr>`;
+                    });
+                    html += `</tbody></table>`;
+                    container.innerHTML = html;
+                }
+            } catch (err) {
+                container.innerHTML = `<div style="color: red;">Execution error</div>`;
+            }
+        }
+
+        window.onload = initDbManager;
+    </script>
+</body>
+</html>
