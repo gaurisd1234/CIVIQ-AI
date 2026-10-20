@@ -66,7 +66,7 @@ async function loginUser(email, password, department=null) {
 SIGNUP
 ======================================================= */
 
-async function signupUser(name, email, password) {
+async function signupUser(name, email, password, phone = "") {
 
     try {
 
@@ -81,7 +81,8 @@ async function signupUser(name, email, password) {
             body: JSON.stringify({
                 name,
                 email,
-                password
+                password,
+                phone_number: phone
             })
 
         });
@@ -514,13 +515,18 @@ LIKE COMPLAINT
 
 async function likeComplaint(id){
 
-    await fetch(`${API_URL}/complaints/${id}/like`,{
-
-        method:"POST",
-
-        credentials:"include"
-
-    });
+    try {
+        const res = await fetch(`${API_URL}/complaints/${id}/like`,{
+            method:"POST",
+            credentials:"include"
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            alert(data.error || "Could not register support");
+        }
+    } catch(err) {
+        alert("Network error while registering support");
+    }
 
     fetchComplaints("citizen");
 

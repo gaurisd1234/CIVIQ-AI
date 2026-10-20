@@ -1,9 +1,19 @@
 from flask import Flask, jsonify, request, session
 from flask_cors import CORS
 from datetime import datetime
-import os, pickle
+import os, pickle, sqlite3, logging
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logger = logging.getLogger("civiq")
+
+ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png"}
+MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10 MB
+
+def allowed_file(filename):
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 from database import create_tables, get_connection
 from ml_models.image_validator import check_image_quality
@@ -17,15 +27,20 @@ from flask import send_from_directory
 
 app = Flask(__name__)
 
-CORS(app, supports_credentials=True, origins=r"http://.*")
+CORS(app, supports_credentials=True, origins=["http://127.0.0.1:5000", "http://localhost:5000"])
 
-app.secret_key = "super_secret_key_change_this"
+app.secret_key = os.environ.get("SECRET_KEY", "civiq_default_dev_secret_key_2026")
 
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_SECURE=False
+    SESSION_COOKIE_SECURE=False,
+    MAX_CONTENT_LENGTH=MAX_CONTENT_LENGTH
 )
+
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    return jsonify({"error": "File size exceeds the 10MB limit"}), 413
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_FOLDER = os.path.abspath(os.path.join(BASE_DIR, "..", "Frontend"))
@@ -57,11 +72,22 @@ create_tables()
 
 MODEL_DIR = os.path.join(BASE_DIR, "ml_models")
 
-with open(os.path.join(MODEL_DIR, "classifier.pkl"), "rb") as f:
-    classifier = pickle.load(f)
+classifier = None
+vectorizer = None
+model_loaded = False
 
-with open(os.path.join(MODEL_DIR, "vectorizer.pkl"), "rb") as f:
-    vectorizer = pickle.load(f)
+try:
+    with open(os.path.join(MODEL_DIR, "classifier.pkl"), "rb") as f:
+        classifier = pickle.load(f)
+
+    with open(os.path.join(MODEL_DIR, "vectorizer.pkl"), "rb") as f:
+        vectorizer = pickle.load(f)
+
+    model_loaded = True
+    logger.info("ML classifier and vectorizer successfully loaded.")
+except Exception as e:
+    logger.warning("Failed to load ML models from %s: %s", MODEL_DIR, str(e))
+    model_loaded = False
 
 # =========================================================
 # AUTH DECORATORS
@@ -86,7 +112,16 @@ def role_required(role):
         return wrapper
     return decorator
 
+@app.route("/ai_status")
+@login_required
+def ai_status():
+    return jsonify({
+        "status": "Online" if model_loaded else "Offline",
+        "loaded": model_loaded
+    })
+
 @app.route("/authority_signup", methods=["POST"])
+@app.route("/register_authority", methods=["POST"])
 def authority_signup():
 
     data = request.get_json()
@@ -116,14 +151,18 @@ def authority_signup():
 
         conn.commit()
 
-    except:
-
+    except sqlite3.IntegrityError:
         conn.close()
-        return jsonify({"error":"Email already exists"})
+        logger.warning("Authority registration failed: email already exists for %s", email)
+        return jsonify({"error": "Email already exists"}), 400
+    except Exception as e:
+        conn.close()
+        logger.exception("Unexpected error during authority signup: %s", str(e))
+        return jsonify({"error": "Registration failed"}), 500
 
     conn.close()
 
-    return jsonify({"status":"authority_created"})
+    return jsonify({"status": "authority_created"})
 
 
 # =========================================================
@@ -139,6 +178,8 @@ def signup():
     email = data.get("email")
     password = data.get("password")
 
+    phone_number = data.get("phone_number") or data.get("phone")
+
     if not name or not email or not password:
         return jsonify({"error": "All fields required"}), 400
 
@@ -147,22 +188,28 @@ def signup():
 
     try:
         cur.execute("""
-            INSERT INTO users (name,email,password,role,status,created_at)
-            VALUES (?,?,?,?,?,?)
+            INSERT INTO users (name,email,password,role,phone_number,status,created_at)
+            VALUES (?,?,?,?,?,?,?)
         """, (
             name,
             email,
             generate_password_hash(password),
             "citizen",
+            phone_number,
             "active",
             datetime.now().isoformat()
         ))
 
         conn.commit()
 
-    except:
+    except sqlite3.IntegrityError:
         conn.close()
+        logger.warning("Citizen signup failed: email already exists for %s", email)
         return jsonify({"error": "Email already exists"}), 400
+    except Exception as e:
+        conn.close()
+        logger.exception("Unexpected error during citizen signup: %s", str(e))
+        return jsonify({"error": "Signup failed"}), 500
 
     conn.close()
 
@@ -286,8 +333,13 @@ def update_profile():
     image_name = None
 
     if image and image.filename:
+        if not allowed_file(image.filename):
+            conn.close()
+            return jsonify({"error": "Invalid file type. Allowed: jpg, jpeg, png"}), 400
 
-        image_name = f"profile_{session['user_id']}.jpg"
+        safe_name = secure_filename(image.filename)
+        ext = safe_name.rsplit(".", 1)[1].lower() if "." in safe_name else "jpg"
+        image_name = f"profile_{session['user_id']}.{ext}"
 
         image.save(os.path.join(UPLOAD_FOLDER, image_name))
 
@@ -328,17 +380,27 @@ def submit_complaint():
 
     official_summary = format_official_text(text)
 
-    vec = vectorizer.transform([text])
-    category = classifier.predict(vec)[0]
+    if model_loaded and classifier and vectorizer:
+        try:
+            vec = vectorizer.transform([text])
+            category = classifier.predict(vec)[0]
+        except Exception as e:
+            logger.warning("Prediction failed: %s, defaulting to 'general'", str(e))
+            category = "general"
+    else:
+        category = "general"
 
     priority = {"low":1,"medium":2,"high":3}.get(severity,1)
 
     image_path = None
     image_valid = 0
 
-    if image:
+    if image and image.filename:
+        if not allowed_file(image.filename):
+            return jsonify({"error": "Invalid file type. Allowed: jpg, jpeg, png"}), 400
 
-        filename = f"{int(datetime.now().timestamp())}_{image.filename}"
+        safe_name = secure_filename(image.filename)
+        filename = f"{int(datetime.now().timestamp())}_{safe_name}"
 
         filepath = os.path.join(UPLOAD_FOLDER, filename)
 
@@ -416,7 +478,11 @@ def get_complaints():
         data.append(complaint)
 
     conn.close()
-    return jsonify({"data": data})
+    return jsonify({
+        "data": data,
+        "ai_engine": "Live" if model_loaded else "Offline",
+        "model_loaded": model_loaded
+    })
 
 
 # =========================================================
@@ -452,18 +518,32 @@ def update_status(id):
 @login_required
 def like_complaint(id):
 
+    user_id = session["user_id"]
     conn = get_connection()
     cur = conn.cursor()
 
-    cur.execute(
-        "UPDATE complaints SET support_count = support_count + 1 WHERE id=?",
-        (id,)
-    )
+    try:
+        cur.execute("""
+            INSERT INTO complaint_likes (complaint_id, user_id, created_at)
+            VALUES (?, ?, ?)
+        """, (id, user_id, datetime.now().isoformat()))
 
-    conn.commit()
-    conn.close()
+        cur.execute(
+            "UPDATE complaints SET support_count = support_count + 1 WHERE id=?",
+            (id,)
+        )
 
-    return jsonify({"status": "liked"})
+        conn.commit()
+        conn.close()
+        return jsonify({"status": "liked", "message": "Support added"})
+
+    except sqlite3.IntegrityError:
+        conn.close()
+        return jsonify({"error": "You have already supported this complaint"}), 400
+    except Exception as e:
+        conn.close()
+        logger.exception("Error adding like for complaint %s by user %s: %s", id, user_id, str(e))
+        return jsonify({"error": "Failed to like complaint"}), 500
 
 @app.route("/complaints/<int:id>/comment", methods=["POST"])
 @login_required
@@ -494,146 +574,9 @@ def add_comment(id):
 
 
 # =========================================================
-# DB ADMIN API ENDPOINTS (FULL CRUD)
-# =========================================================
-
-@app.route("/api/db/tables", methods=["GET"])
-def get_db_tables():
-    conn = get_connection()
-    cur = conn.cursor()
-    tables = cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name != 'sqlite_sequence';").fetchall()
-    result = []
-    for t in tables:
-        t_name = t['name']
-        columns = cur.execute(f"PRAGMA table_info('{t_name}')").fetchall()
-        count = cur.execute(f"SELECT COUNT(*) as cnt FROM '{t_name}'").fetchone()['cnt']
-        cols = [{"name": col['name'], "type": col['type'], "pk": col['pk']} for col in columns]
-        result.append({"name": t_name, "count": count, "columns": cols})
-    conn.close()
-    return jsonify({"tables": result})
-
-@app.route("/api/db/table/<table_name>", methods=["GET"])
-def get_table_data(table_name):
-    conn = get_connection()
-    cur = conn.cursor()
-    tables = [t['name'] for t in cur.execute("SELECT name FROM sqlite_master WHERE type='table';").fetchall()]
-    if table_name not in tables:
-        conn.close()
-        return jsonify({"error": "Invalid table name"}), 400
-
-    columns = [col['name'] for col in cur.execute(f"PRAGMA table_info('{table_name}')").fetchall()]
-    rows = [dict(r) for r in cur.execute(f"SELECT * FROM '{table_name}';").fetchall()]
-    conn.close()
-    return jsonify({"columns": columns, "rows": rows})
-
-@app.route("/api/db/table/<table_name>", methods=["POST"])
-def insert_table_row(table_name):
-    conn = get_connection()
-    cur = conn.cursor()
-    tables = [t['name'] for t in cur.execute("SELECT name FROM sqlite_master WHERE type='table';").fetchall()]
-    if table_name not in tables:
-        conn.close()
-        return jsonify({"error": "Invalid table name"}), 400
-
-    data = request.get_json()
-    if not data:
-        conn.close()
-        return jsonify({"error": "No data provided"}), 400
-
-    if table_name == "users" and "password" in data and not str(data["password"]).startswith("scrypt:"):
-        data["password"] = generate_password_hash(data["password"])
-
-    cols = list(data.keys())
-    vals = list(data.values())
-    placeholders = ", ".join(["?"] * len(vals))
-    col_str = ", ".join([f"'{c}'" for c in cols])
-
-    try:
-        cur.execute(f"INSERT INTO '{table_name}' ({col_str}) VALUES ({placeholders})", vals)
-        conn.commit()
-        new_id = cur.lastrowid
-        conn.close()
-        return jsonify({"status": "success", "id": new_id})
-    except Exception as e:
-        conn.close()
-        return jsonify({"error": str(e)}), 400
-
-@app.route("/api/db/table/<table_name>/<int:row_id>", methods=["PUT"])
-def update_table_row(table_name, row_id):
-    conn = get_connection()
-    cur = conn.cursor()
-    tables = [t['name'] for t in cur.execute("SELECT name FROM sqlite_master WHERE type='table';").fetchall()]
-    if table_name not in tables:
-        conn.close()
-        return jsonify({"error": "Invalid table name"}), 400
-
-    data = request.get_json()
-    if not data:
-        conn.close()
-        return jsonify({"error": "No data provided"}), 400
-
-    if table_name == "users" and "password" in data and not str(data["password"]).startswith("scrypt:"):
-        data["password"] = generate_password_hash(data["password"])
-
-    set_clause = ", ".join([f"'{k}' = ?" for k in data.keys()])
-    vals = list(data.values())
-    vals.append(row_id)
-
-    try:
-        cur.execute(f"UPDATE '{table_name}' SET {set_clause} WHERE id=?", vals)
-        conn.commit()
-        conn.close()
-        return jsonify({"status": "updated"})
-    except Exception as e:
-        conn.close()
-        return jsonify({"error": str(e)}), 400
-
-@app.route("/api/db/table/<table_name>/<int:row_id>", methods=["DELETE"])
-def delete_table_row(table_name, row_id):
-    conn = get_connection()
-    cur = conn.cursor()
-    tables = [t['name'] for t in cur.execute("SELECT name FROM sqlite_master WHERE type='table';").fetchall()]
-    if table_name not in tables:
-        conn.close()
-        return jsonify({"error": "Invalid table name"}), 400
-
-    try:
-        cur.execute(f"DELETE FROM '{table_name}' WHERE id=?", (row_id,))
-        conn.commit()
-        conn.close()
-        return jsonify({"status": "deleted"})
-    except Exception as e:
-        conn.close()
-        return jsonify({"error": str(e)}), 400
-
-@app.route("/api/db/query", methods=["POST"])
-def execute_sql_query():
-    sql = request.json.get("query", "").strip()
-    if not sql:
-        return jsonify({"error": "Empty query"}), 400
-
-    conn = get_connection()
-    cur = conn.cursor()
-    try:
-        cur.execute(sql)
-        if sql.lower().startswith("select"):
-            rows = [dict(r) for r in cur.fetchall()]
-            cols = list(rows[0].keys()) if rows else []
-            conn.close()
-            return jsonify({"columns": cols, "rows": rows, "count": len(rows)})
-        else:
-            conn.commit()
-            affected = cur.rowcount
-            conn.close()
-            return jsonify({"status": "success", "affected_rows": affected})
-    except Exception as e:
-        conn.close()
-        return jsonify({"error": str(e)}), 400
-
-
-# =========================================================
 # RUN SERVER
 # =========================================================
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    debug_mode = os.environ.get("FLASK_DEBUG", "False").lower() in ("true", "1", "yes")
+    app.run(debug=debug_mode)

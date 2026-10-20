@@ -94,7 +94,7 @@ style="background:var(--light);text-align:center;">
 <div class="card"
 style="background:var(--light);text-align:center;">
 
-<h1 style="color:var(--secondary)">Live</h1>
+<h1 id="aiStatus" style="color:var(--secondary)">Checking...</h1>
 
 <p>AI Engine Status</p>
 
@@ -219,6 +219,17 @@ return;
 const result=await res.json();
 
 document.getElementById("totalCount").innerText=result.data.length;
+
+const aiStatusEl = document.getElementById("aiStatus");
+if (aiStatusEl) {
+    if (result.ai_engine === "Live" || result.model_loaded) {
+        aiStatusEl.innerText = "Live";
+        aiStatusEl.style.color = "var(--secondary)";
+    } else {
+        aiStatusEl.innerText = "Offline";
+        aiStatusEl.style.color = "var(--danger)";
+    }
+}
 
 table.innerHTML="";
 

@@ -126,5 +126,21 @@ def create_tables():
     )
     """)
 
+    # =====================================================
+    # COMPLAINT LIKES TABLE (PREVENT DUPLICATES)
+    # =====================================================
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS complaint_likes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        complaint_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        created_at TEXT,
+        UNIQUE(complaint_id, user_id),
+        FOREIGN KEY (complaint_id) REFERENCES complaints(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+    """)
+
     conn.commit()
     conn.close()
