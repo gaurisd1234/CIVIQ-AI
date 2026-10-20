@@ -2,3 +2,10 @@ venv/
 __pycache__/
 *.pyc
 .env
+backend/civiq.db
+backend/uploads/*
+!backend/uploads/.gitkeep
+*.pkl
+.vscode/
+.idea/
+.DS_Store
